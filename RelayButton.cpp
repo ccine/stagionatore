@@ -12,7 +12,7 @@
 
 RelayButton::RelayButton() {}
 
-void RelayButton::initButton(Adafruit_GFX *gfx, int16_t x, int16_t y, const char *label, uint8_t relayPin) {
+void RelayButton::initButton(MCUFRIEND_kbv *gfx, int16_t x, int16_t y, const char *label, uint8_t relayPin) {
   this->gfx = gfx;
   this->x = x;
   this->y = y;

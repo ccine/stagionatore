@@ -2,6 +2,8 @@
 #include <Adafruit_GFX.h>
 #include <TouchScreen.h>
 #include "Program.h"
+#include <MCUFRIEND_kbv.h>
+#include "chamber_process.h"
 
 #define TS_MINX 150
 #define TS_MINY 120
@@ -32,9 +34,9 @@
 class CustomDisplay {
 public:
   CustomDisplay();
-  void initDisplay(int coolingRelay, int heatingRelay, int fanRelay, int dehumidifierRelay, int humidifierRelay, RunningStep rs);
-  void update(float temperatureUp, int humidityUp, float temperatureDown, int humidityDown);
-  void updateRunning(bool cooling, bool heating, bool fan, bool dehumidifier, bool humidifier, int targetTemp, int targetHum, int currentStep = -1, int nSteps = -1, int elapsedTime = 0, int duration = -1);
+  void initDisplay(Stagionatore *stagionatore);
+  void update();
+  void updateRunning();
   float getSelectedTemperature();
   int getSelectedHumidity();
   bool isRunning();
@@ -43,6 +45,7 @@ public:
 
 private:
   int screen;                                                                                 // 0: Home, 1: Auto, 2: Program, 3: Test, 4: Running
+  Stagionatore *stagionatore;                                                                 // Gestore stagionatore
   MCUFRIEND_kbv tft;                                                                          // Display variable
   RelayButton cooling_btn, heating_btn, fan_btn, dehum_btn, hum_btn;                          // Test button to switch relays
   Adafruit_GFX_Button home_screen_btn, auto_screen_btn, program_screen_btn, test_screen_btn;  // Change screen buttons

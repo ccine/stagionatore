@@ -1,3 +1,6 @@
+#ifndef PROGRAM_H
+#define PROGRAM_H
+
 // Definizione della classe ProgramStep
 class ProgramStep {
 public:
@@ -42,3 +45,5 @@ public:
   RunningStep(ProgramStep curr, unsigned long et)
     : isRunning(true), currentStep(curr), elapsedTime(et) {}
 };
+
+#endif

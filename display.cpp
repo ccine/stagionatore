@@ -1,4 +1,4 @@
-#include "CustomDisplay.h"
+#include "display.h"
 
 // salame inverted binary, 315x117px
 const unsigned char epd_bitmap_salame2Small[] PROGMEM = {
@@ -301,7 +301,7 @@ CustomDisplay::CustomDisplay()
   : screen(0) {
 }
 
-void CustomDisplay::initDisplay(int coolingRelay, int heatingRelay, int fanRelay, int dehumidifierRelay, int humidifierRelay, RunningStep rs) {
+void CustomDisplay::initDisplay(Stagionatore *stagionatore) {
   uint16_t ID = tft.readID();
   tft.begin(ID);
   // Configura la touchscreen
@@ -309,11 +309,11 @@ void CustomDisplay::initDisplay(int coolingRelay, int heatingRelay, int fanRelay
   pinMode(YP, OUTPUT);
   tft.setRotation(1);
 
-  cooling_btn.initButton(&tft, 10, 65, "FRIGO", coolingRelay);
-  heating_btn.initButton(&tft, 165, 65, "RISCALDA", heatingRelay);
-  fan_btn.initButton(&tft, 10, 125, "VENTOLA", fanRelay);
-  dehum_btn.initButton(&tft, 165, 125, "ESTRATTORE", dehumidifierRelay);
-  hum_btn.initButton(&tft, 10, 185, "UMIDIFICA", humidifierRelay);
+  cooling_btn.initButton(&tft, 10, 65, "FRIGO", COOLING_RELAY_PIN);
+  heating_btn.initButton(&tft, 165, 65, "RISCALDA", HEATING_RELAY_PIN);
+  fan_btn.initButton(&tft, 10, 125, "VENTOLA", FAN_RELAY_PIN);
+  dehum_btn.initButton(&tft, 165, 125, "ESTRATTORE", DEHUMIDIFIER_RELAY_PIN);
+  hum_btn.initButton(&tft, 10, 185, "UMIDIFICA", HUMIDIFIER_RELAY_PIN);
   home_screen_btn.initButton(&tft, 240, 210, 150, 50, BLACK, CYAN, BLACK, "<- HOME", 2);
   auto_screen_btn.initButton(&tft, 80, 80, 150, 60, BLACK, WHITE, BLACK, "AUTO", 2);
   program_screen_btn.initButton(&tft, 240, 80, 150, 60, BLACK, WHITE, BLACK, "PROGRAMMA", 2);
@@ -330,21 +330,34 @@ void CustomDisplay::initDisplay(int coolingRelay, int heatingRelay, int fanRelay
   stop_btn.initButton(&tft, 155, 210, 150, 50, BLACK, RED, BLACK, "STOP", 2);
 
   tft.fillScreen(GREY);
-  if (rs.isRunning) {
-    running = true;
-    programMode = true;
-    screen = 4;
-    loadedScreen = false;
-    update(0, 0, 0, 0);
-  } else {
-    update(0, 0, 0, 0);
-  }
+
+  this->stagionatore = stagionatore;
+  update();
 }
 
-void CustomDisplay::update(float temperatureUp, int humidityUp, float temperatureDown, int humidityDown) {
-  showValues(temperatureUp, humidityUp, temperatureDown, humidityDown);
+void CustomDisplay::update() {
+  // Update sensor values on the screen
+  chamberSensorData current = stagionatore->getSensorData();
+  showValues(current.temperatureUp, current.humidityUp, current.temperatureDown, current.humidityDown);
+
+  if (stagionatore->getStatus().isRunning) {
+    if (screen == 4) {
+      // Is running and screen is correct, update screen
+      updateRunning();
+    } else {
+      // Is running and screen not correct, change screen
+      screen == 4;
+      loadedScreen = false;
+    }
+  } else {
+    // Not running and screen not correct, change screen
+    if (screen == 4) {
+      screen = 0;
+      loadedScreen = false;
+    }
+  }
+
   if (!loadedScreen) {
-    testModeClick = 0;
     tft.fillRect(0, 40, 320, 210, GREY);
     switch (screen) {
       case 0:
@@ -371,71 +384,73 @@ void CustomDisplay::update(float temperatureUp, int humidityUp, float temperatur
   handleUserInput();
 }
 
-void CustomDisplay::updateRunning(bool cooling, bool heating, bool fan, bool dehumidifier, bool humidifier, int targetTemp, int targetHum, int currentStep, int nSteps, int elapsedTime, int duration) {
+void CustomDisplay::updateRunning() {
+  chamberStatus status = stagionatore->getStatus();
+
   // Step number
-  if (currentStep != lastStep) {
+  if (status.currentStep != lastStep) {
     tft.fillRect(180, 85, 130, 30, GREY);
     tft.setTextSize(2);
     tft.setTextColor(BLACK);
     tft.setCursor(190, 90);
-    tft.print(String(currentStep) + "/" + String(nSteps));
-    lastStep = currentStep;
+    tft.print(String(status.currentStep) + "/" + String(status.nSteps));
+    lastStep = status.currentStep;
   }
   // Elapsed time
-  if (elapsedTime != lastTime) {
+  if (status.elapsedTime != lastTime) {
     tft.fillRect(180, 145, 130, 30, GREY);
     tft.setTextSize(2);
     tft.setTextColor(BLACK);
     tft.setCursor(190, 150);
-    tft.print(String(elapsedTime) + "/" + String(duration));
-    lastTime = elapsedTime;
+    tft.print(String(status.elapsedTime) + "/" + String(status.duration));
+    lastTime = status.elapsedTime;
   }
   // Temperature or humidity changed
-  if (selectedTemp != targetTemp || selectedHum != targetHum) {
+  if (selectedTemp != status.targetTemperature || selectedHum != status.targetHumidity) {
     tft.fillRect(50, 65, 65, 105, GREY);
     tft.setTextSize(3);
     tft.setTextColor(BLACK);
     tft.setCursor(55, 70);
-    tft.print(targetTemp);
+    tft.print(status.targetTemperature);
     tft.print("C");
     tft.setCursor(55, 140);
-    tft.print(targetHum);
+    tft.print(status.targetHumidity);
     tft.print("%");
-    selectedTemp = targetTemp;
-    selectedHum = targetHum;
+    selectedTemp = status.targetTemperature;
+    selectedHum = status.targetHumidity;
   }
 
-  bool relayChanged = lastCooling != cooling || lastHeating != heating || lastFan != fan || lastDehumidifier != dehumidifier || lastHumidifier != humidifier;
+  bool relayChanged = lastCooling != status.cooling || lastHeating != status.heating || lastFan != status.fan || lastDehumidifier != status.dehumidifier || lastHumidifier != status.humidifier;
   if (!relayChanged) return;
   int size = 30, halfSize = size / 2;
   tft.fillRect(10, 70, size, size, GREY);
   tft.fillRect(120, 70, size, size, GREY);
   tft.fillRect(10, 140, size, size, GREY);
   tft.fillRect(120, 140, size, size, GREY);
-  if (cooling) {
+  if (status.cooling) {
     // Disegna freccia in basso azzurra
     int x = 10, y = 70;
     tft.fillTriangle(x, y, x + halfSize, y + size, x + size, y, CYAN);
   }
-  if (heating) {
+  if (status.heating) {
     // Disegna freccia in alto rossa
     int x = 120, y = 70;
     tft.fillTriangle(x, y + size, x + halfSize, y, x + size, y + size, RED);
   }
-  if (dehumidifier) {
+  if (status.dehumidifier) {
     int x = 10, y = 140;
     tft.fillTriangle(x, y, x + halfSize, y + size, x + size, y, BLACK);
   }
-  if (humidifier) {
+  if (status.humidifier) {
     int x = 120, y = 140;
     tft.fillTriangle(x, y + size, x + halfSize, y, x + size, y + size, BLACK);
   }
 
-  lastCooling = cooling;
-  lastHeating = heating;
-  lastFan = fan;
-  lastDehumidifier = dehumidifier;
-  lastHumidifier = humidifier;
+  lastCooling = status.cooling;
+  lastHeating = status.heating;
+  lastFan = status.fan;
+  lastDehumidifier = status.dehumidifier;
+  lastHumidifier = status.humidifier;
 }
 
 float CustomDisplay::getSelectedTemperature() {
@@ -486,6 +501,7 @@ void CustomDisplay::showValues(float temperatureUp, int humidityUp, float temper
 
 
 void CustomDisplay::loadHomeScreen() {
+  testModeClick = 0;
   auto_screen_btn.drawButton();
   test_screen_btn.drawButton();
   program_screen_btn.drawButton();
@@ -703,10 +719,11 @@ void CustomDisplay::handleAutoScreen(bool down) {
   }
   if (start_btn.justPressed()) {
     start_btn.drawButton(true);
-    running = true;
-    programMode = false;
-    screen = 4;
-    loadedScreen = false;
+    stagionatore->startManual(selectedTemp, selectedHum);
+    //running = true;
+    //programMode = false;
+    //screen = 4;
+    //loadedScreen = false;
   }
 }
 
@@ -724,10 +741,11 @@ void CustomDisplay::handleProgramScreen(bool down) {
   }
   if (start_btn.justPressed()) {
     start_btn.drawButton(true);
-    running = true;
-    programMode = true;
-    screen = 4;
-    loadedScreen = false;
+    stagionatore->startProgram();
+    //running = true;
+    //programMode = true;
+    //screen = 4;
+    //loadedScreen = false;
   }
 }
 
@@ -753,9 +771,10 @@ void CustomDisplay::handleRunningScreen(bool down) {
     stop_btn.drawButton();
   if (stop_btn.justPressed()) {
     stop_btn.drawButton(true);
-    running = false;
-    screen = 0;
-    loadedScreen = false;
+    stagionatore->stop();
+    //running = false;
+    //screen = 0;
+    //loadedScreen = false;
   }
 }
 

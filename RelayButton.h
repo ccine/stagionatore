@@ -6,7 +6,7 @@
 class RelayButton {
 public:
   RelayButton();
-  void initButton(Adafruit_GFX *gfx, int16_t x, int16_t y, const char *label, uint8_t relayPin);
+  void initButton(MCUFRIEND_kbv *gfx, int16_t x, int16_t y, const char *label, uint8_t relayPin);
   void update(bool pressed, int16_t pixel_x, int16_t pixel_y);
   void drawButton();
 
