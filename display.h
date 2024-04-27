@@ -1,3 +1,6 @@
+#ifndef DISPLAY_H
+#define DISPLAY_H
+
 #include "RelayButton.h"
 #include <Adafruit_GFX.h>
 #include <TouchScreen.h>
@@ -93,3 +96,5 @@ private:
   void handleTestScreen(bool down);
   void handleRunningScreen(bool down);
 };
+
+#endif
