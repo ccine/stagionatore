@@ -20,7 +20,7 @@ class StagionaturaProgram {
 public:
   String name;
   ProgramStep steps[20];  // Array di passi di dimensione massima 10
-  unsigned int numSteps;  // Numero effettivo di passi
+  byte numSteps;  // Numero effettivo di passi
 
   StagionaturaProgram(String n)
     : name(n), numSteps(0) {}

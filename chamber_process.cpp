@@ -26,6 +26,18 @@ void Stagionatore::begin() {
     unsigned long elapsedMinutes = currentMinutes - currentStepStartTime;
     runningStep = RunningStep(currentProgram.steps[currentStepIndex], elapsedMinutes);
   }*/
+
+  currentProgram.addStep(11 * 60, 22, 85);
+  currentProgram.addStep(12 * 60, 20, 75);
+  currentProgram.addStep(24 * 60, 20, 75);
+  currentProgram.addStep(24 * 60, 18, 76);
+  currentProgram.addStep(24 * 60, 16, 76);
+  currentProgram.addStep(24 * 60, 14, 80);
+  currentProgram.addStep(24 * 60, 12, 85);
+  currentProgram.addStep(24 * 60, 12, 83);
+  currentProgram.addStep(24 * 60, 12, 82);
+  currentProgram.addStep(24 * 60, 10, 81);
+  currentProgram.addStep(24 * 60, 10, 80);
 }
 
 void Stagionatore::run() {
@@ -71,6 +83,8 @@ void Stagionatore::run() {
 }
 
 void Stagionatore::startProgram() {
+  currentStepStartTime = currentSeconds / 60;
+  currentStepIndex = 0;
   isProgramMode = true;
   isRunning = true;
 }

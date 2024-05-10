@@ -27,6 +27,9 @@
 #define SENSOR_UP_ID 0x29
 #define SENSOR_DOWN_ID 0x28
 
+#define IS_RUNNING_ADDR 0
+#define STEP_INDEX_ADDR 1
+
 struct chamberSensorData {
   float temperatureUp = 0;
   float temperatureDown = 0;
