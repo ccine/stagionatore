@@ -1,7 +1,7 @@
 #include "chamber_process.h"
 
 Stagionatore::Stagionatore()
-  : sht20(&Wire, SHT20_I2C_ADDR), currentProgram("Programma 1") {
+  : sht20(&Wire, SHT20_I2C_ADDR), currentProgram("Programma corrente"), savedProgram("Programma salvato") {
 }
 
 void Stagionatore::begin() {
@@ -17,27 +17,35 @@ void Stagionatore::begin() {
   if (!rtc.begin()) {
     Serial.println("Couldn't find RTC");
   }
-  // TO RESET rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-  /*
-  RunningStep runningStep = RunningStep();
-  if (isRunningSaved == 1) {
-    currentSeconds = rtc.now().unixtime();
-    unsigned long currentMinutes = currentSeconds / 60;  // Converti il tempo Unix in minuti
-    unsigned long elapsedMinutes = currentMinutes - currentStepStartTime;
-    runningStep = RunningStep(currentProgram.steps[currentStepIndex], elapsedMinutes);
-  }*/
 
-  currentProgram.addStep(11 * 60, 22, 85);
-  currentProgram.addStep(12 * 60, 20, 75);
-  currentProgram.addStep(24 * 60, 20, 75);
-  currentProgram.addStep(24 * 60, 18, 76);
-  currentProgram.addStep(24 * 60, 16, 76);
-  currentProgram.addStep(24 * 60, 14, 80);
-  currentProgram.addStep(24 * 60, 12, 85);
-  currentProgram.addStep(24 * 60, 12, 83);
-  currentProgram.addStep(24 * 60, 12, 82);
-  currentProgram.addStep(24 * 60, 10, 81);
-  currentProgram.addStep(24 * 60, 10, 80);
+  // TO RESET RTC
+  // rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+
+  EEPROM.get(IS_RUNNING_ADDR, isRunning);
+  Serial.print("Running? ");
+  Serial.print(isRunning);
+  if (isRunning) {
+    // When arduino power off while running set manual mode with last target values
+    float targetTemperature;
+    int targetHumidity;
+    EEPROM.get(LAST_TEMP_ADDR, targetTemperature);
+    EEPROM.get(LAST_HUM_ADDR, targetHumidity);
+    if (targetTemperature > 0 && targetTemperature < 100 && targetHumidity > 0 && targetHumidity < 100) {
+      startManual(targetTemperature, targetHumidity);
+    }
+  }
+
+  savedProgram.addStep(11 * 60, 22, 85);
+  savedProgram.addStep(12 * 60, 20, 75);
+  savedProgram.addStep(24 * 60, 20, 75);
+  savedProgram.addStep(24 * 60, 18, 76);
+  savedProgram.addStep(24 * 60, 16, 76);
+  savedProgram.addStep(24 * 60, 14, 80);
+  savedProgram.addStep(24 * 60, 12, 85);
+  savedProgram.addStep(24 * 60, 12, 83);
+  savedProgram.addStep(24 * 60, 12, 82);
+  savedProgram.addStep(24 * 60, 10, 81);
+  savedProgram.addStep(24 * 60, 10, 80);
 }
 
 void Stagionatore::run() {
@@ -53,62 +61,40 @@ void Stagionatore::run() {
 
   // Se sono in running esegui il programma o la modalità auto
   if (isRunning) {
-    if (isProgramMode) {
-      // Program mode
-      runStagionaturaProgram();
-    } else {
-      // Manual mode
-      runProgramStep();
-    }
-    if (isRunningSaved == 0) {
-      isRunningSaved = 1;
-      currentStepIndex = 0;
-      unsigned long currentMinutes = currentSeconds / 60;
-      currentStepStartTime = currentMinutes;
-      // EEPROM.put(IS_RUNNING_ADDR, isRunningSaved);
-      // EEPROM.put(STEP_INDEX_ADDR, currentStepIndex);
-      // EEPROM.put(STEP_START_ADDR, currentStepStartTime);
-    }
+    runStagionaturaProgram();
   } else {
     if (!cooling || currentSeconds - fridgeOnTime >= MIN_WAIT_FRIDGE * 60) {
       reachedTargetTemperature();
     }
     reachedTargetHumidity();
     turnOffFan();
-    if (isRunningSaved == 1) {
-      isRunningSaved = 0;
-      // EEPROM.put(IS_RUNNING_ADDR, isRunningSaved);
-    }
   }
 }
 
 void Stagionatore::startProgram() {
-  currentStepStartTime = currentSeconds / 60;
-  currentStepIndex = 0;
-  isProgramMode = true;
-  isRunning = true;
+  currentProgram = savedProgram;
+  start();
 }
 
 void Stagionatore::startManual(float targetTemperature, int targetHumidity) {
-  this->targetTemperature = targetTemperature;
-  this->targetHumidity = targetHumidity;
-  isProgramMode = false;
+  StagionaturaProgram newProgram = StagionaturaProgram("Programma manuale");
+  newProgram.addStep(0, targetTemperature, targetHumidity);
+  currentProgram = newProgram;
+  start();
+}
+
+void Stagionatore::start() {
+  currentStepStartTime = currentSeconds / 60;
+  currentStep = 0;
+  EEPROM.update(IS_RUNNING_ADDR, true);
+  EEPROM.update(LAST_TEMP_ADDR, currentProgram.steps[currentStep].targetTemperature);
+  EEPROM.update(LAST_HUM_ADDR, currentProgram.steps[currentStep].targetHumidity);
   isRunning = true;
-}
-
-chamberSensorData Stagionatore::getSensorData() {
-  return currentSensorData;
-}
-
-
-chamberStatus Stagionatore::getStatus() {
-  return {
-    isRunning, isProgramMode, cooling, heating, fan, dehumidifier, humidifier, targetTemperature, targetHumidity, currentStepIndex, nSteps, elapsedTime, duration
-  };
 }
 
 void Stagionatore::stop() {
   isRunning = false;
+  EEPROM.update(IS_RUNNING_ADDR, false);
 }
 
 // Esegui il programma di stagionatura corrente
@@ -117,68 +103,32 @@ void Stagionatore::runStagionaturaProgram() {
   unsigned long elapsedMinutes = currentMinutes - currentStepStartTime;
 
   // Ottieni il passo corrente del programma
-  ProgramStep currentStepProgram = currentProgram.steps[currentStepIndex];
-  targetTemperature = currentStepProgram.targetTemperature;
-  targetHumidity = currentStepProgram.targetHumidity;
-  nSteps = currentProgram.numSteps;
+  ProgramStep currentStepProgram = currentProgram.steps[currentStep];
   elapsedTime = elapsedMinutes;
-  duration = currentStepProgram.duration;
 
   runProgramStep();
 
   // Verifica se il passo corrente è terminato in base al tempo corrente in minuti
-  if (elapsedMinutes >= currentStepProgram.duration) {
-    currentStepIndex++;
+  if (currentStepProgram.duration != 0 && elapsedMinutes >= currentStepProgram.duration) {
+    currentStep++;
     currentStepStartTime = currentMinutes;  // Resetta il tempo di inizio del passo corrente
-    // EEPROM.put(STEP_INDEX_ADDR, currentStepIndex);
-    // EEPROM.put(STEP_START_ADDR, currentStepStartTime);
+    EEPROM.update(LAST_TEMP_ADDR, currentProgram.steps[currentStep].targetTemperature);
+    EEPROM.update(LAST_HUM_ADDR, currentProgram.steps[currentStep].targetHumidity);
   }
 
   // Se il programma è terminato, riporta all'inizio
-  if (currentStepIndex >= currentProgram.numSteps) {
-    isRunningSaved = 0;
-    // EEPROM.put(IS_RUNNING_ADDR, isRunningSaved);
-    currentStepIndex = 0;
+  if (currentStep >= currentProgram.numSteps) {
     stop();
   }
-}
-
-void Stagionatore::readSensors() {
-  byte aa, bb, cc, dd;
-  float temperature = 0.0;
-  float humidity = 0.0;
-
-  // Leggi i valori dal sensore di temperatura e umidità superiore sht20
-  float h = sht20.readHumidity();
-  // Read temperature as Celsius (the default)
-  float t = round(sht20.readTemperature() * 10) / 10.0;
-
-  // Leggi sensore superiore
-  getdata(&aa, &bb, &cc, &dd, SENSOR_UP_ID);
-
-  humidity = (float)(((aa & 0x3F) << 8) + bb) / 16384.0 * 100.0;
-  temperature = (float)((unsigned)(cc * 64) + (unsigned)(dd >> 2)) / 16384.0 * 165.0 - 40.0;
-  currentSensorData.temperatureUp = (temperature + t) / 2.0;
-  currentSensorData.humidityUp = (humidity + h) / 2.0;
-
-  // Leggi sensore inferiore
-  getdata(&aa, &bb, &cc, &dd, SENSOR_DOWN_ID);
-
-  humidity = (float)(((aa & 0x3F) << 8) + bb) / 16384.0 * 100.0;
-  temperature = (float)((unsigned)(cc * 64) + (unsigned)(dd >> 2)) / 16384.0 * 165.0 - 40.0;
-  currentSensorData.temperatureDown = temperature;
-  currentSensorData.humidityDown = round(humidity);
-
-  // Valore media
-  currentSensorData.temperatureAvg = (float)(currentSensorData.temperatureUp + currentSensorData.temperatureDown) / 2.0;
-  currentSensorData.humidityAvg = (float)(currentSensorData.humidityUp + currentSensorData.humidityDown) / 2.0;
-  // currentSensorData.humidityAvg = currentSensorData.humidityUp;
 }
 
 // In base alla temperatura e umidità impostate accendo i relè necessari
 void Stagionatore::runProgramStep() {
   float actualTemperature = currentSensorData.temperatureAvg;
   int actualHumidity = currentSensorData.humidityAvg;
+
+  float targetTemperature = currentProgram.steps[currentStep].targetTemperature;
+  int targetHumidity = currentProgram.steps[currentStep].targetHumidity;
 
   // Attiva il ricircolo dell'aria
   fanController();
@@ -219,6 +169,38 @@ void Stagionatore::runProgramStep() {
       reachedTargetHumidity();
     }
   }
+}
+
+void Stagionatore::readSensors() {
+  byte aa, bb, cc, dd;
+  float temperature = 0.0;
+  float humidity = 0.0;
+
+  // Leggi i valori dal sensore di temperatura e umidità superiore sht20
+  float h = sht20.readHumidity();
+  // Read temperature as Celsius (the default)
+  float t = round(sht20.readTemperature() * 10) / 10.0;
+
+  // Leggi sensore superiore
+  getdata(&aa, &bb, &cc, &dd, SENSOR_UP_ID);
+
+  humidity = (float)(((aa & 0x3F) << 8) + bb) / 16384.0 * 100.0;
+  temperature = (float)((unsigned)(cc * 64) + (unsigned)(dd >> 2)) / 16384.0 * 165.0 - 40.0;
+  currentSensorData.temperatureUp = (temperature + t) / 2.0;
+  currentSensorData.humidityUp = (humidity + h) / 2.0;
+
+  // Leggi sensore inferiore
+  getdata(&aa, &bb, &cc, &dd, SENSOR_DOWN_ID);
+
+  humidity = (float)(((aa & 0x3F) << 8) + bb) / 16384.0 * 100.0;
+  temperature = (float)((unsigned)(cc * 64) + (unsigned)(dd >> 2)) / 16384.0 * 165.0 - 40.0;
+  currentSensorData.temperatureDown = temperature;
+  currentSensorData.humidityDown = round(humidity);
+
+  // Valore media
+  currentSensorData.temperatureAvg = (float)(currentSensorData.temperatureUp + currentSensorData.temperatureDown) / 2.0;
+  currentSensorData.humidityAvg = (float)(currentSensorData.humidityUp + currentSensorData.humidityDown) / 2.0;
+  // currentSensorData.humidityAvg = currentSensorData.humidityUp;
 }
 
 void Stagionatore::fanController() {
@@ -327,4 +309,24 @@ void Stagionatore::getdata(byte* a, byte* b, byte* c, byte* d, int address) {
   *b = Wire.read();
   *c = Wire.read();
   *d = Wire.read();
+}
+
+chamberSensorData Stagionatore::getSensorData() {
+  return currentSensorData;
+}
+
+
+chamberStatus Stagionatore::getStatus() {
+  float targetTemperature = 25.0;
+  int targetHumidity = 50;
+  unsigned int duration = 0;
+  if (currentProgram.numSteps > 0) {
+    ProgramStep currentStepProgram = currentProgram.steps[currentStep];
+    targetTemperature = currentStepProgram.targetTemperature;
+    targetHumidity = currentStepProgram.targetHumidity;
+    duration = currentStepProgram.duration;
+  }
+  return {
+    isRunning, cooling, heating, fan, dehumidifier, humidifier, targetTemperature, targetHumidity, currentStep, currentProgram.numSteps, elapsedTime, duration
+  };
 }

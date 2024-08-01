@@ -4,9 +4,9 @@
 // Definizione della classe ProgramStep
 class ProgramStep {
 public:
-  unsigned long duration;  // minutes
-  float targetTemperature;
-  int targetHumidity;
+  unsigned long duration;   // minutes
+  float targetTemperature;  // if >=100 not set
+  int targetHumidity;       // if >=100 not set
 
   ProgramStep(unsigned long dur, float temp, int hum)
     : duration(dur), targetTemperature(temp), targetHumidity(hum) {}
@@ -20,7 +20,7 @@ class StagionaturaProgram {
 public:
   String name;
   ProgramStep steps[20];  // Array di passi di dimensione massima 10
-  byte numSteps;  // Numero effettivo di passi
+  byte numSteps;          // Numero effettivo di passi
 
   StagionaturaProgram(String n)
     : name(n), numSteps(0) {}
@@ -31,19 +31,6 @@ public:
       numSteps++;
     }
   }
-};
-
-class RunningStep {
-public:
-  bool isRunning;
-  ProgramStep currentStep;
-  unsigned long elapsedTime;
-
-  RunningStep()
-    : isRunning(false), currentStep(ProgramStep()), elapsedTime(0) {}
-
-  RunningStep(ProgramStep curr, unsigned long et)
-    : isRunning(true), currentStep(curr), elapsedTime(et) {}
 };
 
 #endif

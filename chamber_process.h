@@ -8,6 +8,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include "Program.h"
+#include <EEPROM.h>
 
 #define HUMIDITY_DELTA 2        // Percentuale
 #define TEMP_DELTA 1            // Gradi
@@ -28,7 +29,8 @@
 #define SENSOR_DOWN_ID 0x28
 
 #define IS_RUNNING_ADDR 0
-#define STEP_INDEX_ADDR 1
+#define LAST_TEMP_ADDR 10
+#define LAST_HUM_ADDR 20
 
 struct chamberSensorData {
   float temperatureUp = 0;
@@ -40,12 +42,12 @@ struct chamberSensorData {
 };
 
 struct chamberStatus {
-  bool isRunning;
-  bool isProgramMode;
-  bool cooling, heating, fan, dehumidifier, humidifier;
-  float targetTemperature;
-  int targetHumidity;
-  int currentStep, nSteps, elapsedTime, duration;
+  bool isRunning = false;
+  bool cooling = false, heating = false, fan = false, dehumidifier = false, humidifier = false;
+  float targetTemperature = 25.0;
+  int targetHumidity = 50;
+  byte currentStep = 0, nSteps = 1;
+  unsigned int elapsedTime = 0, duration = 0;
 };
 
 class Stagionatore {
@@ -70,26 +72,27 @@ private:
   void decreaseHumidity();
   void increaseHumidity();
   void turnOffFan();
+  void start();
   void getdata(byte *a, byte *b, byte *c, byte *d, int address);
+
+
+  bool cooling = false, heating = false, fan = false, dehumidifier = false, humidifier = false;
+
+  bool isRunning = false;
+  unsigned long elapsedTime = 0;
+  byte currentStep;
 
   StagionaturaProgram currentProgram;
   chamberSensorData currentSensorData;
-  unsigned long lastSensorReadTime = 10;  // Memorizza il tempo dell'ultima lettura dei sensori
-  unsigned int currentStepIndex = 0;
+
+  unsigned long lastSensorReadTime = 10;                     // Memorizza il tempo dell'ultima lettura dei sensori
   unsigned long currentStepStartTime = 0;                    // Minuti
   unsigned long fanSwitchTime, fridgeOffTime, fridgeOnTime;  // Secondi
-  bool cooling = false, heating = false, fan = false, dehumidifier = false, humidifier = false;
   RTC_DS3231 rtc;
   unsigned long currentSeconds;
   DFRobot_SHT20 sht20;
-  int isRunningSaved = 0;
-  bool isRunning = false;
-  bool isProgramMode = false;
-  float targetTemperature;
-  int targetHumidity;
-  int nSteps = -1;
-  int elapsedTime = 0;
-  int duration = -1;
+
+  StagionaturaProgram savedProgram;
 };
 
 #endif
