@@ -124,7 +124,7 @@ void WiFiManager::loadHTMLPage(WiFiClient* client) {
   // Header
   client->println(getHTMLHeader());
   // Body
-  client->println("<div class='container mt-3'>");
+  client->println("<body><div class='container mt-3'>");
 
   chamberStatus status = _stagionatore->getStatus();
   // Alert
@@ -206,7 +206,7 @@ String WiFiManager::getHTMLRunningStatus(chamberStatus status) {
 
 String WiFiManager::getHTMLEquipmentStatus(bool status) {
   if (status) return "<span class='equipment-status text-success'>Acceso</span>";
-  else return "<span class='equipment-status text-danger'>Spento</span></p>";
+  else return "<span class='equipment-status text-danger'>Spento</span>";
 }
 
 
