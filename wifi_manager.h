@@ -21,16 +21,9 @@ private:
 
   Stagionatore* _stagionatore;
 
-  void handleRoot();
-  void handleStatus();
-  void loadHTMLPage(WiFiClient* client);
-  String getHTMLEquipmentStatus(bool status);
-  String getHTMLRunningStatus(chamberStatus status);
-  String getHTMLStatusAlert(bool isRunning);
-  String getHTMLSensorData();
-  String getHTMLStartManualMode();
-  String getHTMLHeader();
-  String getHTMLFooter();
+  void handleRoot(WiFiClient& client);
+  void handleStatus(WiFiClient& client);
+  void handleCommand(WiFiClient& client, const String& command);
 };
 
 #endif
